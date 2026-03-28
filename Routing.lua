@@ -3,7 +3,13 @@ local addonName, ns = ...  -- luacheck: ignore 211/addonName
 ns.Routing = {}
 
 -- Cost in equivalent yards for one loading screen (portal/teleport).
-local PORTAL_COST = 500
+-- Flying speed is ~58 yards/sec, loading screen ~3-4 sec.
+local PORTAL_COST = 200
+
+-- Strip parenthetical beast name suffix for chat output
+local function ChatName(step)
+    return step.name:gsub(" %(.+%)$", "")
+end
 
 -- Navigation state
 local navSteps = nil          -- ordered list of waypoint steps
@@ -97,6 +103,22 @@ function ns.Routing:TravelCost(fromMapID, fromX, fromY, toMapID, toX, toY)
     end
 
     return exitCost + entryCost
+end
+
+-- Returns just the exit cost portion of a cross-zone leg (cost to get from a point to SM).
+-- Returns 0 if already in a walkable zone. Returns nil if not a cross-zone situation.
+function ns.Routing:ExitCost(fromMapID, fromX, fromY)
+    local fromPortal = ns.PORTALS[fromMapID]
+    if fromPortal then
+        local walkToExit = self:WorldDistance(fromMapID, fromX, fromY, fromPortal.exitMapID, fromPortal.exitX, fromPortal.exitY)
+        if walkToExit == math.huge then walkToExit = 200 end
+        return walkToExit + PORTAL_COST
+    elseif ns.WALKABLE_ZONES[fromMapID] then
+        local walkToSM = self:WorldDistance(fromMapID, fromX, fromY, ns.ZONE_SILVERMOON, 0.5, 0.65)
+        if walkToSM == math.huge then walkToSM = 300 end
+        return walkToSM
+    end
+    return nil
 end
 
 ------------------------------------------------------------------------
@@ -254,26 +276,49 @@ function ns.Routing:GetAvailableTeleports()
         if tp.itemID == 6948 then
             destMapID, destX, destY = self:ResolveHearthstone()
             if not destMapID then
-                -- HS not bound to a known Midnight inn, skip it
                 destMapID = nil
             end
         end
 
         if destMapID then
-            local hasItem = C_Item.GetItemCount(tp.itemID, false) > 0 or tp.itemID == 6948
-            if hasItem then
-                local startTime, duration = C_Item.GetItemCooldown(tp.itemID)
-                local offCooldown = (startTime == 0) or (GetTime() >= startTime + duration)
-                if offCooldown then
-                    table.insert(available, {
-                        name = tp.name,
-                        itemID = tp.itemID,
-                        destMapID = destMapID,
-                        destX = destX,
-                        destY = destY,
-                        portalCosts = tp.portalCosts,
-                    })
+            local isAvailable = false
+
+            if tp.spellID then
+                -- Spell-based teleport (e.g. Mage Teleport: Silvermoon City)
+                if IsSpellKnown(tp.spellID) then
+                    local cdInfo = C_Spell.GetSpellCooldown(tp.spellID)
+                    local offCooldown = not cdInfo or cdInfo.duration == 0
+                    if offCooldown then
+                        isAvailable = true
+                    end
                 end
+            else
+                -- Item-based teleport
+                local hasItem
+                if tp.isToy then
+                    hasItem = PlayerHasToy(tp.itemID)
+                else
+                    hasItem = C_Item.GetItemCount(tp.itemID, false) > 0 or tp.itemID == 6948
+                end
+                if hasItem then
+                    local startTime, duration = C_Item.GetItemCooldown(tp.itemID)
+                    local offCooldown = (startTime == 0) or (GetTime() >= startTime + duration)
+                    if offCooldown then
+                        isAvailable = true
+                    end
+                end
+            end
+
+            if isAvailable then
+                table.insert(available, {
+                    name = tp.name,
+                    itemID = tp.itemID,
+                    spellID = tp.spellID,
+                    destMapID = destMapID,
+                    destX = destX,
+                    destY = destY,
+                    portalCosts = tp.portalCosts,
+                })
             end
         end
     end
@@ -304,6 +349,8 @@ end
 function ns.Routing:SolveRoute(beastEntries)
     if #beastEntries == 0 then return nil end
 
+    local SM_CENTER_X, SM_CENTER_Y = 0.46, 0.70
+
     -- Get player position
     local playerMapID = C_Map.GetBestMapForUnit("player")
     local playerPos = C_Map.GetPlayerMapPosition(playerMapID, "player")
@@ -315,6 +362,8 @@ function ns.Routing:SolveRoute(beastEntries)
     end
 
     local teleports = self:GetAvailableTeleports()
+    -- Sort teleports by priority: lowest portal cost first (mage > HS > Arcantina)
+    table.sort(teleports, function(a, b) return a.portalCosts < b.portalCosts end)
     local perms = Permutations(beastEntries)
     local bestCost = math.huge
     local bestPerm = nil
@@ -333,44 +382,98 @@ function ns.Routing:SolveRoute(beastEntries)
             prevMapID, prevX, prevY = toMapID, toX, toY
         end
 
+        -- If ending at SM, add return leg from last beast
+        local returnLegIndex = nil
+        if ns.endAtSilvermoon then
+            local lastBeast = perm[#perm].beast
+            local returnCost = self:TravelCost(lastBeast.mapID, lastBeast.x, lastBeast.y,
+                                                ns.ZONE_SILVERMOON, SM_CENTER_X, SM_CENTER_Y)
+            returnLegIndex = #perm + 1
+            legCosts[returnLegIndex] = returnCost
+        end
+
         local totalCost = 0
         for _, c in ipairs(legCosts) do totalCost = totalCost + c end
 
-        -- Try assigning teleports to the most expensive cross-zone return legs
+        -- Try assigning teleports to cross-zone legs.
+        -- A teleport replaces only the "exit" portion of a leg (getting back to SM from
+        -- the previous beast). The "entry" portion (SM to next beast) stays the same.
         local tpAssignment = {}
         if #teleports > 0 then
-            -- Find legs that involve returning to SM (cross-zone legs)
+            -- Find cross-zone legs and their exit costs
             local returnLegs = {}
-            prevMapID = playerMapID
+            prevMapID, prevX, prevY = playerMapID, playerX, playerY
             for i, entry in ipairs(perm) do
                 local toMapID = entry.beast.mapID
                 local needsPortal = not (prevMapID == toMapID or
                     (ns.WALKABLE_ZONES[prevMapID] and ns.WALKABLE_ZONES[toMapID]))
                 if needsPortal and legCosts[i] < math.huge then
-                    table.insert(returnLegs, { index = i, cost = legCosts[i] })
+                    local normalExit = self:ExitCost(prevMapID, prevX, prevY) or 0
+                    table.insert(returnLegs, {
+                        index = i,
+                        exitCost = normalExit,
+                    })
                 end
-                prevMapID = toMapID
+                prevMapID = perm[i].beast.mapID
+                prevX, prevY = perm[i].beast.x, perm[i].beast.y
             end
 
-            -- Sort by cost descending — assign teleports to most expensive legs first
-            table.sort(returnLegs, function(a, b) return a.cost > b.cost end)
+            -- Include return-to-SM leg if ending at Silvermoon
+            if returnLegIndex and legCosts[returnLegIndex] < math.huge then
+                local lastBeast = perm[#perm].beast
+                local normalExit = self:ExitCost(lastBeast.mapID, lastBeast.x, lastBeast.y) or 0
+                table.insert(returnLegs, {
+                    index = returnLegIndex,
+                    exitCost = normalExit,
+                })
+            end
 
-            local tpSavings = 0
-            for j = 1, math.min(#teleports, #returnLegs) do
-                local leg = returnLegs[j]
-                local tp = teleports[j]
-                -- Teleport replaces the entire leg. New cost: loading screens + travel from TP dest to beast.
-                local entry = perm[leg.index]
-                local tpLoadCost = tp.portalCosts * PORTAL_COST
-                local travelFromTP = self:TravelCost(tp.destMapID, tp.destX, tp.destY,
-                                                     entry.beast.mapID, entry.beast.x, entry.beast.y)
-                if travelFromTP == math.huge then travelFromTP = 1000 end
-                local newCost = tpLoadCost + travelFromTP
-                local saving = leg.cost - newCost
-                if saving > 0 then
-                    tpSavings = tpSavings + saving
-                    tpAssignment[leg.index] = tp
+            -- Compute savings for every (teleport, leg) pair.
+            -- Saving = normal exit cost - teleport cost to reach SM
+            local savingsMatrix = {}
+            for tpIdx, tp in ipairs(teleports) do
+                savingsMatrix[tpIdx] = {}
+                for _, leg in ipairs(returnLegs) do
+                    local tpCostToSM = tp.portalCosts * PORTAL_COST
+                    -- If teleport doesn't land in SM or a walkable zone, add travel from TP dest to SM
+                    if not ns.WALKABLE_ZONES[tp.destMapID] and tp.destMapID ~= ns.ZONE_SILVERMOON then
+                        local toSM = self:ExitCost(tp.destMapID, tp.destX, tp.destY) or 500
+                        tpCostToSM = tpCostToSM + toSM
+                    elseif ns.WALKABLE_ZONES[tp.destMapID] and tp.destMapID ~= ns.ZONE_SILVERMOON then
+                        local walkToSM = self:WorldDistance(tp.destMapID, tp.destX, tp.destY,
+                                                            ns.ZONE_SILVERMOON, 0.5, 0.65)
+                        if walkToSM == math.huge then walkToSM = 300 end
+                        tpCostToSM = tpCostToSM + walkToSM
+                    end
+                    savingsMatrix[tpIdx][leg.index] = leg.exitCost - tpCostToSM
                 end
+            end
+
+            -- Greedy assignment: repeatedly pick the (teleport, leg) pair with highest saving
+            local usedTPs = {}
+            local usedLegs = {}
+            local tpSavings = 0
+            for _ = 1, math.min(#teleports, #returnLegs) do
+                local bestSaving, bestTP, bestLeg = 0, nil, nil
+                for tpIdx = 1, #teleports do
+                    if not usedTPs[tpIdx] then
+                        for _, leg in ipairs(returnLegs) do
+                            if not usedLegs[leg.index] then
+                                local s = savingsMatrix[tpIdx][leg.index]
+                                if s > bestSaving then
+                                    bestSaving = s
+                                    bestTP = tpIdx
+                                    bestLeg = leg.index
+                                end
+                            end
+                        end
+                    end
+                end
+                if not bestTP then break end
+                usedTPs[bestTP] = true
+                usedLegs[bestLeg] = true
+                tpSavings = tpSavings + bestSaving
+                tpAssignment[bestLeg] = teleports[bestTP]
             end
             totalCost = totalCost - tpSavings
         end
@@ -403,6 +506,37 @@ function ns.Routing:SolveRoute(beastEntries)
             table.insert(steps, step)
         end
         prevMapID, prevX, prevY = toMapID, toX, toY
+    end
+
+    -- Append return-to-Silvermoon if requested
+    if ns.endAtSilvermoon then
+        local returnIdx = #bestPerm + 1
+        if bestTeleportAssignment and bestTeleportAssignment[returnIdx] then
+            local tp = bestTeleportAssignment[returnIdx]
+            table.insert(steps, {
+                type = "teleport",
+                name = "Use " .. tp.name .. " (Silvermoon City)",
+                mapID = tp.destMapID,
+                x = tp.destX,
+                y = tp.destY,
+                itemID = tp.itemID,
+                spellID = tp.spellID,
+            })
+        else
+            -- Walk/portal back to SM
+            local fromPortal = ns.PORTALS[prevMapID]
+            if fromPortal then
+                table.insert(steps, {
+                    type = "portal",
+                    name = fromPortal.exitName .. " (Silvermoon City)",
+                    mapID = fromPortal.exitMapID,
+                    x = fromPortal.exitX,
+                    y = fromPortal.exitY,
+                    poiSearch = fromPortal.exitPoiSearch,
+                    poiMapID = fromPortal.exitPoiMapID,
+                })
+            end
+        end
     end
 
     return steps, bestCost
@@ -489,7 +623,7 @@ function ns.Routing:StartNavigation(steps, craftableOnly)
     ns.addon:Print("Route planned (" .. #steps .. " steps):")
     for i, step in ipairs(steps) do
         local icon = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
-        ns.addon:Printf("  %d. %s%s|r", i, icon, step.name)
+        ns.addon:Printf("  %d. %s%s|r", i, icon, ChatName(step))
     end
 
     self:AdvanceWaypoint()
@@ -525,7 +659,7 @@ function ns.Routing:AdvanceWaypoint()
             return
         end
         local step = navSteps[navIndex]
-        ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, step.name)
+        ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ChatName(step))
         navUID = SetTomTomWaypoint(step)
         ns.MainWindow:Refresh()
     end
@@ -556,6 +690,80 @@ function ns.Routing:SkipCurrentStep()
     end
 end
 
+-- Build a return-to-SM route when no beasts remain but endAtSilvermoon is checked.
+function ns.Routing:PlanReturnToSilvermoon()
+    local currentMapID = C_Map.GetBestMapForUnit("player")
+    local steps = {}
+
+    -- Check if a teleport is available for the return
+    local teleports = self:GetAvailableTeleports()
+    table.sort(teleports, function(a, b) return a.portalCosts < b.portalCosts end)
+
+    local bestTP = nil
+    if #teleports > 0 then
+        local playerPos = C_Map.GetPlayerMapPosition(currentMapID, "player")
+        local px, py = playerPos and playerPos.x or 0.5, playerPos and playerPos.y or 0.5
+        local normalExit = self:ExitCost(currentMapID, px, py) or 0
+        for _, tp in ipairs(teleports) do
+            local tpCost = tp.portalCosts * PORTAL_COST
+            if tpCost < normalExit then
+                bestTP = tp
+                break
+            end
+        end
+    end
+
+    if bestTP then
+        table.insert(steps, {
+            type = "teleport",
+            name = "Use " .. bestTP.name .. " (Silvermoon City)",
+            mapID = bestTP.destMapID,
+            x = bestTP.destX,
+            y = bestTP.destY,
+            itemID = bestTP.itemID,
+            spellID = bestTP.spellID,
+        })
+    else
+        local fromPortal = ns.PORTALS[currentMapID]
+        if fromPortal then
+            table.insert(steps, {
+                type = "portal",
+                name = fromPortal.exitName .. " (Silvermoon City)",
+                mapID = fromPortal.exitMapID,
+                x = fromPortal.exitX,
+                y = fromPortal.exitY,
+                poiSearch = fromPortal.exitPoiSearch,
+                poiMapID = fromPortal.exitPoiMapID,
+            })
+        end
+    end
+
+    if #steps == 0 then
+        -- Already in a walkable zone, just complete
+        return false
+    end
+
+    ClearCurrentWaypoint()
+    local savedVisited = navVisitedQuests
+    local savedCraftable = navCraftableOnly
+    navSteps = steps
+    navIndex = 1
+    navVisitedQuests = savedVisited
+    navCraftableOnly = savedCraftable
+
+    ns.addon:Print("Returning to Silvermoon:")
+    for i, step in ipairs(steps) do
+        local icon = step.type == "teleport" and "|cff00ccff" or "|cffffff00"
+        ns.addon:Printf("  %d. %s%s|r", i, icon, ChatName(step))
+    end
+
+    local step = navSteps[1]
+    ns.addon:Printf("Step 1/%d: %s", #navSteps, ChatName(step))
+    navUID = SetTomTomWaypoint(step)
+    ns.MainWindow:Refresh()
+    return true
+end
+
 -- Re-plan the route from current position with remaining (unvisited) beasts.
 -- Returns true if a new route was started, false if no beasts remain.
 function ns.Routing:ReplanRoute()
@@ -570,6 +778,13 @@ function ns.Routing:ReplanRoute()
     end
 
     if #remaining == 0 then
+        -- No beasts left, but if ending at SM and we're not there, route back
+        if ns.endAtSilvermoon then
+            local currentMapID = C_Map.GetBestMapForUnit("player")
+            if currentMapID ~= ns.ZONE_SILVERMOON then
+                return self:PlanReturnToSilvermoon()
+            end
+        end
         return false
     end
 
@@ -590,11 +805,11 @@ function ns.Routing:ReplanRoute()
     ns.addon:Print("Route re-planned (" .. #steps .. " steps remaining):")
     for i, step in ipairs(steps) do
         local icon = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
-        ns.addon:Printf("  %d. %s%s|r", i, icon, step.name)
+        ns.addon:Printf("  %d. %s%s|r", i, icon, ChatName(step))
     end
 
     local step = navSteps[1]
-    ns.addon:Printf("Step 1/%d: %s", #navSteps, step.name)
+    ns.addon:Printf("Step 1/%d: %s", #navSteps, ChatName(step))
     navUID = SetTomTomWaypoint(step)
     ns.MainWindow:Refresh()
     return true
@@ -628,19 +843,33 @@ function ns.Routing:OnZoneChanged()
     local step = navSteps[navIndex]
     if not step then return end
 
-    -- If current step is a portal and we're now in the right zone, advance
+    local currentMapID = C_Map.GetBestMapForUnit("player")
+
+    -- If current step is a portal and we've changed zone, advance
     if step.type == "portal" then
-        local currentMapID = C_Map.GetBestMapForUnit("player")
-        -- Portal step: the arrow was pointing to a portal. If we've changed zone,
-        -- the player likely took it. Advance to next step.
         if currentMapID ~= step.mapID then
             self:AdvanceWaypoint()
         end
     elseif step.type == "teleport" then
-        -- Teleport: if we're now in Silvermoon, advance
-        local currentMapID = C_Map.GetBestMapForUnit("player")
         if currentMapID == ns.ZONE_SILVERMOON then
             self:AdvanceWaypoint()
+        end
+    end
+
+    -- If ending at SM and we've arrived, complete the route
+    if ns.endAtSilvermoon and self:IsNavigating() and currentMapID == ns.ZONE_SILVERMOON then
+        -- Check if all remaining steps are just getting to SM (no more beasts)
+        local hasRemainingBeast = false
+        for i = navIndex, #navSteps do
+            if navSteps[i].type == "beast" then
+                hasRemainingBeast = true
+                break
+            end
+        end
+        if not hasRemainingBeast then
+            ns.addon:Print("|cff00ff00Route complete! Welcome back to Silvermoon.|r")
+            self:StopNavigation()
+            ns.MainWindow:Refresh()
         end
     end
 end

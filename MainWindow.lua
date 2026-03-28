@@ -36,8 +36,8 @@ local function CreateMainFrame()
     -- Calculate height from content
     -- Title bar ~24, inset top ~4, beast rows, status line, checkbox, nav text, buttons, scan button, padding
     local beastAreaHeight = #ns.BEASTS * ROW_HEIGHT
-    local bottomAreaHeight = 14 + 4 + 26 + 4 + 14 + 4 + 22 + 4 + 18 + PADDING
-    -- status(14) + gap + checkbox(26) + gap + navText(14) + gap + buttons(22) + gap + scan(18) + pad
+    local bottomAreaHeight = 14 + 4 + 22 + 4 + 22 + 4 + 14 + 4 + 22 + 4 + 18 + PADDING
+    -- status(14) + gap + cb1(22) + gap + cb2(22) + gap + navText(14) + gap + buttons(22) + gap + scan(18) + pad
     local WINDOW_HEIGHT = 28 + 4 + beastAreaHeight + 4 + bottomAreaHeight
 
     frame = CreateFrame("Frame", "TalentedTrackerMainFrame", UIParent, "BasicFrameTemplateWithInset")
@@ -168,10 +168,21 @@ local function CreateMainFrame()
     navText:SetTextColor(0, 0.8, 1)
     navText:Hide()
 
-    -- Checkbox (above nav text)
+    -- Checkboxes (above nav text)
+    local endAtSMCB = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    endAtSMCB:SetSize(22, 22)
+    endAtSMCB:SetPoint("BOTTOMLEFT", routeBtn, "TOPLEFT", -2, 18)
+    endAtSMCB:SetChecked(false)
+    endAtSMCB:SetScript("OnClick", function(cb)
+        ns.endAtSilvermoon = cb:GetChecked()
+    end)
+    local endAtSMLabel = endAtSMCB:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    endAtSMLabel:SetPoint("LEFT", endAtSMCB, "RIGHT", 2, 0)
+    endAtSMLabel:SetText("End at Silvermoon")
+
     includeSkinnedCB = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     includeSkinnedCB:SetSize(22, 22)
-    includeSkinnedCB:SetPoint("BOTTOMLEFT", routeBtn, "TOPLEFT", -2, 18)
+    includeSkinnedCB:SetPoint("BOTTOMLEFT", endAtSMCB, "TOPLEFT", 0, 4)
     includeSkinnedCB:SetChecked(false)
     includeSkinnedCB:SetScript("OnClick", function(cb)
         ns.includeSkinned = cb:GetChecked()
@@ -181,7 +192,7 @@ local function CreateMainFrame()
     cbLabel:SetPoint("LEFT", includeSkinnedCB, "RIGHT", 2, 0)
     cbLabel:SetText("Include skinned beasts")
 
-    -- Status summary (above checkbox)
+    -- Status summary (above checkboxes)
     statusText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     statusText:SetPoint("BOTTOMLEFT", includeSkinnedCB, "TOPLEFT", 4, 2)
     statusText:SetWidth(WINDOW_WIDTH - PADDING * 2)
