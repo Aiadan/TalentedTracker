@@ -84,9 +84,17 @@ ns.TELEPORTS = {
     {
         name = "Personal Key to the Arcantina",
         itemID = 253629,
+        isToy = true,
         destMapID = ns.ZONE_SILVERMOON,
         destX = 0.670, destY = 0.622,
         portalCosts = 2, -- 2 loading screens (into Arcantina, then out to SM)
+    },
+    {
+        name = "Teleport: Silvermoon City",
+        spellID = 1259190,
+        destMapID = ns.ZONE_SILVERMOON,
+        destX = 0.5274, destY = 0.6535,
+        portalCosts = 1, -- 1 loading screen, no cooldown
     },
 }
 
