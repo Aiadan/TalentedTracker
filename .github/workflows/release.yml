@@ -1,0 +1,32 @@
+name: Package and release
+
+on:
+  push:
+    tags:
+      - '[0-9]*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+
+    steps:
+
+      - name: Clone project
+        uses: actions/checkout@v4
+
+      - name: Replace TOC with release version
+        run: |
+          rm -f TalentedTracker.toc
+          mv '!dev_TalentedTracker.toc' TalentedTracker.toc
+
+      - name: Remove non-release files
+        run: rm -f CLAUDE.md
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -p 1498295
