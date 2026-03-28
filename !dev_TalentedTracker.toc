@@ -8,7 +8,7 @@
 #@non-debug@
 # ## SavedVariables: TalentedTrackerDB
 #@end-non-debug@
-## OptionalDeps: Auctionator, Mapzeroth
+## OptionalDeps: Auctionator
 ## X-Category: Professions
 ## X-License: MIT
 
@@ -21,6 +21,7 @@ Libs\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0.lua
 
 Data.lua
+Routing.lua
 RecipeCache.lua
 Core.lua
 MainWindow.lua

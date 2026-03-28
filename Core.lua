@@ -27,6 +27,7 @@ function TalentedTracker:OnEnable()
     self:RegisterEvent("QUEST_TURNED_IN", "OnQuestTurnedIn")
     self:RegisterEvent("TRADE_SKILL_LIST_UPDATE", "OnTradeSkillListUpdate")
     self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagUpdate")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnZoneChanged")
 end
 
 ------------------------------------------------------------------------
@@ -61,6 +62,19 @@ function TalentedTracker:GetUnskinnedBeasts(craftableOnly)
         end
     end
     return unskinned
+end
+
+function TalentedTracker:GetBeastsForRoute(craftableOnly)
+    local result = {}
+    for _, entry in ipairs(self:GetBeastStatus()) do
+        local include = not entry.skinned or ns.includeSkinned
+        if include then
+            if not craftableOnly or entry.hasLure or entry.canCraft or entry.skinned then
+                table.insert(result, entry)
+            end
+        end
+    end
+    return result
 end
 
 function TalentedTracker:GetCompletedCount()
@@ -161,6 +175,7 @@ function TalentedTracker:OnQuestTurnedIn(_, questID)
         if beast.questID == questID then
             self:Printf("|cff00ff00%s skinned!|r (%d/%d complete)",
                 beast.name, self:GetCompletedCount(), #ns.BEASTS)
+            ns.Routing:OnQuestCompleted(questID)
             ns.MainWindow:Refresh()
             return
         end
@@ -179,4 +194,8 @@ end
 
 function TalentedTracker:OnBagUpdate()
     ns.MainWindow:Refresh()
+end
+
+function TalentedTracker:OnZoneChanged()
+    ns.Routing:OnZoneChanged()
 end

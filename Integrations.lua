@@ -3,19 +3,13 @@ local addonName, ns = ...  -- luacheck: ignore 211/addonName
 ns.Integrations = {}
 
 ------------------------------------------------------------------------
--- Mapzeroth routing
+-- Routing
 ------------------------------------------------------------------------
 
 function ns.Integrations:CreateRoute(craftableOnly)
-    local Mapzeroth = _G["Mapzeroth"]
-    if not Mapzeroth then
-        ns.addon:Print("Mapzeroth is not loaded.")
-        return
-    end
+    local beasts = ns.addon:GetBeastsForRoute(craftableOnly)
 
-    local unskinned = ns.addon:GetUnskinnedBeasts(craftableOnly)
-
-    if #unskinned == 0 then
+    if #beasts == 0 then
         if craftableOnly then
             ns.addon:Print("No beasts remaining that you can lure. Try /tt route all to include all unskinned beasts.")
         else
@@ -24,17 +18,13 @@ function ns.Integrations:CreateRoute(craftableOnly)
         return
     end
 
-    local destinations = {}
-    for _, entry in ipairs(unskinned) do
-        table.insert(destinations, {
-            name = entry.beast.name,
-            mapID = entry.beast.mapID,
-            x = entry.beast.x,
-            y = entry.beast.y,
-        })
+    local steps = ns.Routing:SolveRoute(beasts)
+    if not steps or #steps == 0 then
+        ns.addon:Print("Could not compute a route.")
+        return
     end
 
-    Mapzeroth:RouteMultiDestinationV2(destinations, "Renowned Beasts")
+    ns.Routing:StartNavigation(steps, craftableOnly)
 end
 
 ------------------------------------------------------------------------
@@ -52,17 +42,17 @@ function ns.Integrations:CreateShoppingList()
         return
     end
 
-    local unskinned = ns.addon:GetUnskinnedBeasts(false)
-    if #unskinned == 0 then
-        ns.addon:Print("All beasts skinned for today!")
+    local beasts = ns.addon:GetBeastsForRoute(false)
+    if #beasts == 0 then
+        ns.addon:Print("No beasts to shop for.")
         return
     end
 
-    -- Aggregate reagents across all craftable lures we still need
+    -- Aggregate reagents across all craftable lures we don't have yet
     local reagentTotals = {} -- [itemID] = { name, quantity }
     local craftableCount = 0
 
-    for _, entry in ipairs(unskinned) do
+    for _, entry in ipairs(beasts) do
         if not entry.hasLure and entry.canCraft then
             craftableCount = craftableCount + 1
             local reagents = ns.RecipeCache:GetReagents(entry.beast.lureItemID)
