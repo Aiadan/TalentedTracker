@@ -2,6 +2,98 @@ local addonName, ns = ...  -- luacheck: ignore 211/addonName
 
 ns.SKINNING_SKILL_LINE_ID = 2917
 
+------------------------------------------------------------------------
+-- Zone definitions
+------------------------------------------------------------------------
+
+-- Zone IDs
+ns.ZONE_SILVERMOON   = 2393
+ns.ZONE_EVERSONG     = 2395
+ns.ZONE_ZULAMAN      = 2437
+ns.ZONE_HARANDAR     = 2413
+ns.ZONE_HARANDAR_DEN = 2576
+ns.ZONE_VOIDSTORM    = 2405
+
+-- Zones walkable from Silvermoon (no portal needed)
+ns.WALKABLE_ZONES = {
+    [ns.ZONE_SILVERMOON] = true,
+    [ns.ZONE_EVERSONG]   = true,
+    [ns.ZONE_ZULAMAN]    = true,
+}
+
+-- Portal connections: zone -> { exitPortal, smPortal }
+-- exitPortal: portal IN the zone that takes you to SM
+-- smPortal: portal IN Silvermoon that takes you to the zone
+ns.PORTALS = {
+    [ns.ZONE_HARANDAR] = {
+        exitMapID = ns.ZONE_HARANDAR_DEN,
+        exitX = 0.6467, exitY = 0.7095,
+        exitName = "Portal to Silvermoon",
+        exitPoiSearch = "Silvermoon",         -- name fragment to match in AreaPOI list
+        exitPoiMapID = ns.ZONE_HARANDAR_DEN,
+        smX = 0.369, smY = 0.682,
+        smName = "Portal to Harandar",
+        smPoiSearch = "Harandar",
+        smPoiMapID = ns.ZONE_SILVERMOON,
+    },
+    [ns.ZONE_VOIDSTORM] = {
+        exitMapID = ns.ZONE_VOIDSTORM,
+        exitX = 0.516, exitY = 0.702,
+        exitName = "Portal to Silvermoon",
+        exitPoiSearch = "Silvermoon",
+        exitPoiMapID = ns.ZONE_VOIDSTORM,
+        smX = 0.353, smY = 0.655,
+        smName = "Portal to Voidstorm",
+        smPoiSearch = "Voidstorm",
+        smPoiMapID = ns.ZONE_SILVERMOON,
+    },
+}
+
+-- Known inns in Midnight zones, keyed by GetBindLocation() return value (subzone name).
+-- Used to determine where the hearthstone teleports to.
+ns.INNS = {
+    -- Silvermoon City
+    ["Wayfarer's Rest"]    = { mapID = ns.ZONE_SILVERMOON, x = 0.670, y = 0.622 },
+    -- Eversong Woods
+    ["Fairbreeze Village"] = { mapID = ns.ZONE_EVERSONG,   x = 0.462, y = 0.460 },  -- Sylmara Dawnpetal
+    ["Goldenmist Village"] = { mapID = ns.ZONE_EVERSONG,   x = 0.392, y = 0.614 },  -- Innkeeper Areyn
+    ["Tranquillien"]       = { mapID = ns.ZONE_EVERSONG,   x = 0.490, y = 0.684 },  -- Innkeeper Kalarin
+    -- Zul'Aman
+    ["Witherbark Bluffs"]  = { mapID = ns.ZONE_ZULAMAN,    x = 0.368, y = 0.234 },  -- Gav'jan
+    ["Camp Stonewash"]     = { mapID = ns.ZONE_ZULAMAN,    x = 0.464, y = 0.256 },  -- Provisioner Jok
+    ["Amani'Zar Village"]  = { mapID = ns.ZONE_ZULAMAN,    x = 0.454, y = 0.650 },  -- Tavikko
+    -- Harandar
+    ["The Den"]            = { mapID = ns.ZONE_HARANDAR,   x = 0.508, y = 0.554 },  -- Yinaa
+    ["Har'alnor Den"]      = { mapID = ns.ZONE_HARANDAR,   x = 0.310, y = 0.650 },  -- Narou
+    ["Har'mara"]           = { mapID = ns.ZONE_HARANDAR,   x = 0.350, y = 0.228 },  -- Gnu'la
+    ["Har'athir"]          = { mapID = ns.ZONE_HARANDAR,   x = 0.690, y = 0.516 },  -- Tla'nith
+    -- Voidstorm
+    ["Dusk's Repose"]      = { mapID = ns.ZONE_VOIDSTORM,  x = 0.530, y = 0.682 },  -- Hospitus
+    ["Locus Point"]        = { mapID = ns.ZONE_VOIDSTORM,  x = 0.416, y = 0.746 },  -- Darkhearth Kein
+    ["The Ingress"]        = { mapID = ns.ZONE_VOIDSTORM,  x = 0.356, y = 0.586 },  -- Franelle Darkdreamer
+}
+
+-- Teleport anchors
+ns.TELEPORTS = {
+    {
+        name = "Hearthstone",
+        itemID = 6948,
+        portalCosts = 1, -- 1 loading screen
+        -- destMapID/destX/destY resolved at runtime from GetBindLocation()
+    },
+    {
+        name = "Personal Key to the Arcantina",
+        itemID = 253629,
+        destMapID = ns.ZONE_SILVERMOON,
+        destX = 0.670, destY = 0.622,
+        portalCosts = 2, -- 2 loading screens (into Arcantina, then out to SM)
+    },
+}
+
+------------------------------------------------------------------------
+-- Beast data
+------------------------------------------------------------------------
+
 ns.BEASTS = {
     {
         name = "Gloomclaw",

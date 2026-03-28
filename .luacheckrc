@@ -16,17 +16,23 @@ globals = {
 
 read_globals = {
     -- WoW API
+    "C_AreaPoiInfo",
     "C_Item",
     "C_Map",
     "C_QuestLog",
+    "C_SuperTrack",
     "C_Timer",
     "C_TradeSkillUI",
     "C_AddOns",
     "CreateFrame",
+    "CreateVector2D",
     "Enum",
     "GameTooltip",
     "GameTooltip_Hide",
+    "GetBindLocation",
     "GetItemInfo",
+    "GetTime",
+    "UiMapPoint",
     "UIParent",
     "UISpecialFrames",
 
@@ -37,4 +43,5 @@ read_globals = {
 
     -- Optional dependency globals
     "Auctionator",
+    "TomTom",
 }

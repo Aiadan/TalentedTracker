@@ -1,7 +1,7 @@
 ## Interface: 120001
 ## Title: |cFF33FF99Talented Tracker|r [DEV]
 ## Notes: Track renowned beast skinning dailies, plan routes, and shop for lure reagents.
-## OptionalDeps: Auctionator, Mapzeroth
+## OptionalDeps: Auctionator
 ## SavedVariables: dev_TalentedTrackerDB
 ## X-Category: Professions
 ## X-License: MIT
@@ -15,6 +15,7 @@ Libs\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0.lua
 
 Data.lua
+Routing.lua
 RecipeCache.lua
 Core.lua
 MainWindow.lua
