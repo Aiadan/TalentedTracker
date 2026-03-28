@@ -1,0 +1,182 @@
+local addonName, ns = ...  -- luacheck: ignore 211/addonName
+
+local TalentedTracker = LibStub("AceAddon-3.0"):NewAddon(
+    "TalentedTracker", "AceConsole-3.0", "AceEvent-3.0"
+)
+ns.addon = TalentedTracker
+
+function TalentedTracker:OnInitialize()
+    --@debug@
+    local dbName = "dev_TalentedTrackerDB"
+    --@end-debug@
+    --@non-debug@
+    -- local dbName = "TalentedTrackerDB"
+    --@end-non-debug@
+
+    _G[dbName] = _G[dbName] or {}
+    ns.db = _G[dbName]
+    ns.db.recipeCache = ns.db.recipeCache or {}
+
+    self:RegisterChatCommand("tt", "SlashCommand")
+    self:RegisterChatCommand("talentedtracker", "SlashCommand")
+
+    ns.InitMinimapButton()
+end
+
+function TalentedTracker:OnEnable()
+    self:RegisterEvent("QUEST_TURNED_IN", "OnQuestTurnedIn")
+    self:RegisterEvent("TRADE_SKILL_LIST_UPDATE", "OnTradeSkillListUpdate")
+    self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagUpdate")
+end
+
+------------------------------------------------------------------------
+-- Status queries
+------------------------------------------------------------------------
+
+function TalentedTracker:HasSkinning()
+    local info = C_TradeSkillUI.GetProfessionInfoBySkillLineID(ns.SKINNING_SKILL_LINE_ID)
+    return info and info.skillLevel and info.skillLevel > 0
+end
+
+function TalentedTracker:GetBeastStatus()
+    local results = {}
+    for _, beast in ipairs(ns.BEASTS) do
+        table.insert(results, {
+            beast = beast,
+            skinned = C_QuestLog.IsQuestFlaggedCompleted(beast.questID),
+            hasLure = C_Item.GetItemCount(beast.lureItemID, true) > 0,
+            canCraft = ns.RecipeCache:CanCraftLure(beast.lureItemID),
+        })
+    end
+    return results
+end
+
+function TalentedTracker:GetUnskinnedBeasts(craftableOnly)
+    local unskinned = {}
+    for _, entry in ipairs(self:GetBeastStatus()) do
+        if not entry.skinned then
+            if not craftableOnly or entry.hasLure or entry.canCraft then
+                table.insert(unskinned, entry)
+            end
+        end
+    end
+    return unskinned
+end
+
+function TalentedTracker:GetCompletedCount()
+    local count = 0
+    for _, beast in ipairs(ns.BEASTS) do
+        if C_QuestLog.IsQuestFlaggedCompleted(beast.questID) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+------------------------------------------------------------------------
+-- Status display
+------------------------------------------------------------------------
+
+function TalentedTracker:PrintStatus()
+    if not self:HasSkinning() then
+        self:Print("You don't have Midnight Skinning.")
+        return
+    end
+
+    local status = self:GetBeastStatus()
+    local remaining = 0
+
+    for _, entry in ipairs(status) do
+        if entry.skinned then
+            self:Printf("  |cff888888%s — skinned|r", entry.beast.name)
+        else
+            remaining = remaining + 1
+            local lureTag
+            if entry.hasLure then
+                lureTag = "|cff00ff00have lure|r"
+            elseif entry.canCraft then
+                lureTag = "|cffffff00can craft lure|r"
+            else
+                lureTag = "|cffff0000no recipe|r"
+            end
+            self:Printf("  %s — %s", entry.beast.name, lureTag)
+        end
+    end
+
+    if remaining == 0 then
+        self:Print("All renowned beasts skinned for today!")
+    else
+        self:Printf("%d/%d remaining.", remaining, #ns.BEASTS)
+    end
+
+    if not ns.RecipeCache:IsCacheComplete() then
+        self:Print("|cffffff00Recipe data not yet cached. Open your Skinning profession window to scan.|r")
+    end
+end
+
+------------------------------------------------------------------------
+-- Slash commands
+------------------------------------------------------------------------
+
+function TalentedTracker:SlashCommand(input)
+    local args = {}
+    for word in (input or ""):gmatch("%S+") do
+        table.insert(args, word:lower())
+    end
+    local cmd = args[1] or "status"
+
+    if cmd == "status" or cmd == "" then
+        ns.MainWindow:Toggle()
+    elseif cmd == "route" then
+        local includeAll = args[2] == "all"
+        ns.Integrations:CreateRoute(not includeAll)
+    elseif cmd == "shop" then
+        ns.Integrations:CreateShoppingList()
+    elseif cmd == "scan" then
+        self:Print("Scanning recipes... (open your Skinning profession window if not already open)")
+        local found = ns.RecipeCache:ScanForLureRecipes()
+        if found then
+            self:Print("Lure recipe data cached successfully!")
+        else
+            self:Print("No lure recipes found. Is your Skinning profession window open?")
+        end
+    elseif cmd == "help" then
+        self:Print("Commands:")
+        self:Print("  /tt — Show beast status")
+        self:Print("  /tt route — Route to beasts you can lure (have lure or can craft)")
+        self:Print("  /tt route all — Route to ALL unskinned beasts")
+        self:Print("  /tt shop — Auctionator shopping list for lure reagents")
+        self:Print("  /tt scan — Rescan skinning recipes")
+    else
+        self:Printf("Unknown command: %s. Use /tt help", cmd)
+    end
+end
+
+------------------------------------------------------------------------
+-- Events
+------------------------------------------------------------------------
+
+function TalentedTracker:OnQuestTurnedIn(_, questID)
+    for _, beast in ipairs(ns.BEASTS) do
+        if beast.questID == questID then
+            self:Printf("|cff00ff00%s skinned!|r (%d/%d complete)",
+                beast.name, self:GetCompletedCount(), #ns.BEASTS)
+            ns.MainWindow:Refresh()
+            return
+        end
+    end
+end
+
+function TalentedTracker:OnTradeSkillListUpdate()
+    if not ns.RecipeCache:IsCacheComplete() then
+        local found = ns.RecipeCache:ScanForLureRecipes()
+        if found then
+            self:Print("Lure recipe data cached successfully!")
+            ns.MainWindow:Refresh()
+        end
+    end
+end
+
+function TalentedTracker:OnBagUpdate()
+    ns.MainWindow:Refresh()
+end
