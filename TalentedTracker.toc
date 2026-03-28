@@ -2,7 +2,7 @@
 ## Title: |cFF33FF99Talented Tracker|r [DEV]
 ## Notes: Track renowned beast skinning dailies, plan routes, and shop for lure reagents.
 ## OptionalDeps: Auctionator
-## SavedVariables: dev_TalentedTrackerDB
+## SavedVariables: TalentedTrackerDB
 ## X-Category: Professions
 ## X-License: MIT
 

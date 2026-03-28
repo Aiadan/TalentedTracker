@@ -6,12 +6,7 @@ local TalentedTracker = LibStub("AceAddon-3.0"):NewAddon(
 ns.addon = TalentedTracker
 
 function TalentedTracker:OnInitialize()
-    --@debug@
-    local dbName = "dev_TalentedTrackerDB"
-    --@end-debug@
-    --@non-debug@
-    -- local dbName = "TalentedTrackerDB"
-    --@end-non-debug@
+    local dbName = "TalentedTrackerDB"
 
     _G[dbName] = _G[dbName] or {}
     ns.db = _G[dbName]
