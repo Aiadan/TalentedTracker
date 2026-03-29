@@ -315,8 +315,8 @@ function ns.Routing:GetAvailableTeleports()
     for _, tp in ipairs(ns.TELEPORTS) do
         local destMapID, destX, destY = tp.destMapID, tp.destX, tp.destY
 
-        -- Hearthstone: resolve destination from bind location
-        if tp.itemID == 6948 then
+        -- Hearthstone and Astral Recall: resolve destination from bind location
+        if tp.itemID == 6948 or tp.resolveFromBind then
             destMapID, destX, destY = self:ResolveHearthstone()
             if not destMapID then
                 destMapID = nil
