@@ -14,6 +14,11 @@ ns.ZONE_HARANDAR     = 2413
 ns.ZONE_HARANDAR_DEN = 2576
 ns.ZONE_VOIDSTORM    = 2405
 
+-- Sub-zone map IDs that should be treated as their parent zone for routing
+ns.ZONE_ALIASES = {
+    [ns.ZONE_HARANDAR_DEN] = ns.ZONE_HARANDAR,
+}
+
 -- Zones walkable from Silvermoon (no portal needed)
 ns.WALKABLE_ZONES = {
     [ns.ZONE_SILVERMOON] = true,
@@ -46,6 +51,22 @@ ns.PORTALS = {
         smName = "Portal to Voidstorm",
         smPoiSearch = "Voidstorm",
         smPoiMapID = ns.ZONE_SILVERMOON,
+    },
+}
+
+-- Direct zone-to-zone portals (shortcuts that skip Silvermoon)
+-- arrivalMapID/X/Y = where you end up in the destination zone after taking the portal
+ns.DIRECT_PORTALS = {
+    {
+        fromZone = ns.ZONE_HARANDAR,
+        toZone = ns.ZONE_VOIDSTORM,
+        portalMapID = ns.ZONE_HARANDAR_DEN,
+        portalX = 0.617, portalY = 0.728,
+        portalName = "Portal to Voidstorm",
+        poiSearch = "Voidstorm",
+        poiMapID = ns.ZONE_HARANDAR_DEN,
+        arrivalMapID = ns.ZONE_VOIDSTORM,
+        arrivalX = 0.516, arrivalY = 0.702,  -- near the SM portal area in Voidstorm
     },
 }
 

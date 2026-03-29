@@ -19,6 +19,14 @@ local navCraftableOnly = true -- route filter setting used when this route was c
 local navVisitedQuests = {}   -- questIDs of beasts we've completed or skipped this route
 
 ------------------------------------------------------------------------
+-- Zone alias resolution
+------------------------------------------------------------------------
+
+local function ResolveZone(mapID)
+    return ns.ZONE_ALIASES[mapID] or mapID
+end
+
+------------------------------------------------------------------------
 -- Distance helpers
 ------------------------------------------------------------------------
 
@@ -45,9 +53,44 @@ end
 -- Travel cost between two points (possibly cross-zone via SM portals)
 ------------------------------------------------------------------------
 
+-- Cost to travel between zones via Silvermoon hub portals.
+function ns.Routing:TravelCostViaSM(fromMapID, fromX, fromY, toMapID, toX, toY)
+    local fromPortal = ns.PORTALS[fromMapID]
+    local exitCost
+    if fromPortal then
+        local walkToExit = self:WorldDistance(fromMapID, fromX, fromY, fromPortal.exitMapID, fromPortal.exitX, fromPortal.exitY)
+        if walkToExit == math.huge then walkToExit = 200 end
+        exitCost = walkToExit + PORTAL_COST
+    elseif ns.WALKABLE_ZONES[fromMapID] then
+        exitCost = self:WorldDistance(fromMapID, fromX, fromY, ns.ZONE_SILVERMOON, 0.5, 0.65)
+        if exitCost == math.huge then exitCost = 300 end
+    else
+        return math.huge
+    end
+
+    local toPortal = ns.PORTALS[toMapID]
+    local entryCost
+    if toPortal then
+        local smOriginX = fromPortal and fromPortal.smX or 0.5
+        local smOriginY = fromPortal and fromPortal.smY or 0.65
+        local smWalk = self:WorldDistance(ns.ZONE_SILVERMOON, smOriginX, smOriginY,
+                                          ns.ZONE_SILVERMOON, toPortal.smX, toPortal.smY)
+        if smWalk == math.huge then smWalk = 100 end
+        local walkToDest = self:WorldDistance(toMapID, toPortal.exitX, toPortal.exitY, toMapID, toX, toY)
+        if walkToDest == math.huge then walkToDest = 200 end
+        entryCost = smWalk + PORTAL_COST + walkToDest
+    elseif ns.WALKABLE_ZONES[toMapID] then
+        local walkDist = self:WorldDistance(ns.ZONE_SILVERMOON, 0.5, 0.65, toMapID, toX, toY)
+        if walkDist == math.huge then walkDist = 400 end
+        entryCost = walkDist
+    else
+        return math.huge
+    end
+
+    return exitCost + entryCost
+end
+
 -- Returns the cost to travel from point A to point B.
--- If they're walkable (same continent, no portal needed), it's Euclidean distance.
--- If cross-zone via portals, it includes portal hops through Silvermoon.
 function ns.Routing:TravelCost(fromMapID, fromX, fromY, toMapID, toX, toY)
     -- Same zone: direct walk
     if fromMapID == toMapID then
@@ -62,47 +105,24 @@ function ns.Routing:TravelCost(fromMapID, fromX, fromY, toMapID, toX, toY)
         end
     end
 
-    -- Cross-zone via Silvermoon portals
-    local fromPortal = ns.PORTALS[fromMapID]
-    local exitCost
-    if fromPortal then
-        -- Walk to exit portal + loading screen
-        local walkToExit = self:WorldDistance(fromMapID, fromX, fromY, fromPortal.exitMapID, fromPortal.exitX, fromPortal.exitY)
-        if walkToExit == math.huge then
-            -- Exit portal is on a different sub-map (e.g. Harandar Den vs Harandar)
-            walkToExit = 200
+    -- Check for direct zone-to-zone portals (e.g. Harandar Den → Voidstorm)
+    -- A direct portal is always faster than going through SM since it's in the
+    -- same hub but saves an entire SM round-trip.
+    for _, dp in ipairs(ns.DIRECT_PORTALS) do
+        if dp.fromZone == fromMapID and dp.toZone == toMapID then
+            -- Walk to hub (same as walking to SM exit portal area)
+            local walkToHub = self:ExitCost(fromMapID, fromX, fromY)
+            if not walkToHub then walkToHub = 300 end
+            -- ExitCost includes SM portal loading screen, replace with direct portal loading screen
+            walkToHub = walkToHub - PORTAL_COST + PORTAL_COST -- net zero, but conceptually correct
+            -- Walk from arrival in destination zone to the beast
+            local walkToDest = self:WorldDistance(dp.arrivalMapID, dp.arrivalX, dp.arrivalY, toMapID, toX, toY)
+            if walkToDest == math.huge then walkToDest = 200 end
+            return walkToHub + walkToDest
         end
-        exitCost = walkToExit + PORTAL_COST
-    elseif ns.WALKABLE_ZONES[fromMapID] then
-        -- Walking from Eversong/ZA/SM to SM center area
-        exitCost = self:WorldDistance(fromMapID, fromX, fromY, ns.ZONE_SILVERMOON, 0.5, 0.65)
-        if exitCost == math.huge then exitCost = 300 end
-    else
-        return math.huge -- unknown zone
     end
 
-    local toPortal = ns.PORTALS[toMapID]
-    local entryCost
-    if toPortal then
-        -- SM walk between portals + loading screen + walk to destination
-        local smOriginX = fromPortal and fromPortal.smX or 0.5
-        local smOriginY = fromPortal and fromPortal.smY or 0.65
-        local smWalk = self:WorldDistance(ns.ZONE_SILVERMOON, smOriginX, smOriginY,
-                                          ns.ZONE_SILVERMOON, toPortal.smX, toPortal.smY)
-        if smWalk == math.huge then smWalk = 100 end
-        local walkToDest = self:WorldDistance(toMapID, toPortal.exitX, toPortal.exitY, toMapID, toX, toY)
-        if walkToDest == math.huge then walkToDest = 200 end
-        entryCost = smWalk + PORTAL_COST + walkToDest
-    elseif ns.WALKABLE_ZONES[toMapID] then
-        -- Walking from SM to destination in Eversong/ZA
-        local walkDist = self:WorldDistance(ns.ZONE_SILVERMOON, 0.5, 0.65, toMapID, toX, toY)
-        if walkDist == math.huge then walkDist = 400 end
-        entryCost = walkDist
-    else
-        return math.huge
-    end
-
-    return exitCost + entryCost
+    return self:TravelCostViaSM(fromMapID, fromX, fromY, toMapID, toX, toY)
 end
 
 -- Returns just the exit cost portion of a cross-zone leg (cost to get from a point to SM).
@@ -125,6 +145,15 @@ end
 -- Build the step-by-step route between two beast locations
 ------------------------------------------------------------------------
 
+local function FindDirectPortal(fromMapID, toMapID)
+    for _, dp in ipairs(ns.DIRECT_PORTALS) do
+        if dp.fromZone == fromMapID and dp.toZone == toMapID then
+            return dp
+        end
+    end
+    return nil
+end
+
 local function BuildLegSteps(fromMapID, _, _, toMapID, toX, toY, beastEntry) -- luacheck: no unused args
     local steps = {}
 
@@ -141,36 +170,50 @@ local function BuildLegSteps(fromMapID, _, _, toMapID, toX, toY, beastEntry) -- 
         return steps
     end
 
-    -- Need portal travel through Silvermoon
-    local fromPortal = ns.PORTALS[fromMapID]
-    local toPortal = ns.PORTALS[toMapID]
-
     local beastName = beastEntry.beast.name
 
-    -- Step 1: Go to zone exit portal (if in a portal zone)
-    if fromPortal then
+    -- Check for a direct portal shortcut
+    local directPortal = FindDirectPortal(fromMapID, toMapID)
+    if directPortal then
         table.insert(steps, {
             type = "portal",
-            name = fromPortal.exitName .. " (" .. beastName .. ")",
-            mapID = fromPortal.exitMapID,
-            x = fromPortal.exitX,
-            y = fromPortal.exitY,
-            poiSearch = fromPortal.exitPoiSearch,
-            poiMapID = fromPortal.exitPoiMapID,
+            name = directPortal.portalName .. " (" .. beastName .. ")",
+            mapID = directPortal.portalMapID,
+            x = directPortal.portalX,
+            y = directPortal.portalY,
+            poiSearch = directPortal.poiSearch,
+            poiMapID = directPortal.poiMapID,
         })
-    end
+    else
+        -- Travel through Silvermoon
+        local fromPortal = ns.PORTALS[fromMapID]
+        local toPortal = ns.PORTALS[toMapID]
 
-    -- Step 2: Go to SM entry portal for destination (if destination needs a portal)
-    if toPortal then
-        table.insert(steps, {
-            type = "portal",
-            name = toPortal.smName .. " (" .. beastName .. ")",
-            mapID = ns.ZONE_SILVERMOON,
-            x = toPortal.smX,
-            y = toPortal.smY,
-            poiSearch = toPortal.smPoiSearch,
-            poiMapID = toPortal.smPoiMapID,
-        })
+        -- Step 1: Go to zone exit portal (if in a portal zone)
+        if fromPortal then
+            table.insert(steps, {
+                type = "portal",
+                name = fromPortal.exitName .. " (" .. beastName .. ")",
+                mapID = fromPortal.exitMapID,
+                x = fromPortal.exitX,
+                y = fromPortal.exitY,
+                poiSearch = fromPortal.exitPoiSearch,
+                poiMapID = fromPortal.exitPoiMapID,
+            })
+        end
+
+        -- Step 2: Go to SM entry portal for destination (if destination needs a portal)
+        if toPortal then
+            table.insert(steps, {
+                type = "portal",
+                name = toPortal.smName .. " (" .. beastName .. ")",
+                mapID = ns.ZONE_SILVERMOON,
+                x = toPortal.smX,
+                y = toPortal.smY,
+                poiSearch = toPortal.smPoiSearch,
+                poiMapID = toPortal.smPoiMapID,
+            })
+        end
     end
 
     -- Step 3: Go to the beast
@@ -352,7 +395,7 @@ function ns.Routing:SolveRoute(beastEntries)
     local SM_CENTER_X, SM_CENTER_Y = 0.46, 0.70
 
     -- Get player position
-    local playerMapID = C_Map.GetBestMapForUnit("player")
+    local playerMapID = ResolveZone(C_Map.GetBestMapForUnit("player"))
     local playerPos = C_Map.GetPlayerMapPosition(playerMapID, "player")
     local playerX, playerY
     if playerPos then
@@ -571,14 +614,14 @@ local function SetTomTomWaypoint(step)
             minimap = true,
             world = true,
             crazy = true,
-            arrivaldistance = 20,
+            arrivaldistance = 10,
             cleardistance = 0, -- we manage removal ourselves
         }
         -- Use distance callback to auto-advance for beast steps
         if step.type == "beast" then
             opts.callbacks = TomTom:DefaultCallbacks(opts)
             opts.callbacks.distance = opts.callbacks.distance or {}
-            opts.callbacks.distance[20] = function()
+            opts.callbacks.distance[10] = function()
                 ns.Routing:AdvanceWaypoint()
             end
         end
@@ -780,7 +823,7 @@ function ns.Routing:ReplanRoute()
     if #remaining == 0 then
         -- No beasts left, but if ending at SM and we're not there, route back
         if ns.endAtSilvermoon then
-            local currentMapID = C_Map.GetBestMapForUnit("player")
+            local currentMapID = ResolveZone(C_Map.GetBestMapForUnit("player"))
             if currentMapID ~= ns.ZONE_SILVERMOON then
                 return self:PlanReturnToSilvermoon()
             end
