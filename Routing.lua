@@ -886,7 +886,7 @@ function ns.Routing:OnZoneChanged()
     local step = navSteps[navIndex]
     if not step then return end
 
-    local currentMapID = C_Map.GetBestMapForUnit("player")
+    local currentMapID = ResolveZone(C_Map.GetBestMapForUnit("player"))
 
     -- If current step is a portal and we've changed zone, advance
     if step.type == "portal" then
@@ -896,6 +896,26 @@ function ns.Routing:OnZoneChanged()
     elseif step.type == "teleport" then
         if currentMapID == ns.ZONE_SILVERMOON then
             self:AdvanceWaypoint()
+        end
+    end
+
+    -- If we're on a transit step (portal/teleport) but already in the zone of the
+    -- next beast, skip ahead — the player got there by an unexpected route.
+    if self:IsNavigating() and navSteps[navIndex] and navSteps[navIndex].type ~= "beast" then
+        for i = navIndex + 1, #navSteps do
+            if navSteps[i].type == "beast" then
+                if ResolveZone(navSteps[i].mapID) == currentMapID then
+                    -- Skip ahead to this beast step
+                    ClearCurrentWaypoint()
+                    navIndex = i
+                    local beastStep = navSteps[navIndex]
+                    ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ChatName(beastStep))
+                    navUID = SetTomTomWaypoint(beastStep)
+                    ns.MainWindow:Refresh()
+                    return
+                end
+                break -- only check the next beast, not further ones
+            end
         end
     end
 
