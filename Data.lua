@@ -33,11 +33,11 @@ ns.PORTALS = {
     [ns.ZONE_HARANDAR] = {
         exitMapID = ns.ZONE_HARANDAR_DEN,
         exitX = 0.6467, exitY = 0.7095,
-        exitName = "Portal to Silvermoon",
-        exitPoiSearch = "Silvermoon",         -- name fragment to match in AreaPOI list
+        exitName = "Eversong Rootway",
+        exitPoiSearch = "Eversong",
         exitPoiMapID = ns.ZONE_HARANDAR_DEN,
         smX = 0.369, smY = 0.682,
-        smName = "Portal to Harandar",
+        smName = "Rootway to Harandar",
         smPoiSearch = "Harandar",
         smPoiMapID = ns.ZONE_SILVERMOON,
     },

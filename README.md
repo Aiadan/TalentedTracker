@@ -17,6 +17,7 @@ Talented Tracker knows where every beast is, which ones you've already skinned t
 - Factors in your hearthstone bind location — supports all 15 Midnight zone inns
 - Uses the Personal Key to the Arcantina as a second teleport anchor (2 loading screens)
 - Mages with Teleport: Silvermoon City get a third teleport option
+- Shamans get a second hearthstone use through Astral Recall
 - Teleports are assigned to the route legs where they save the most travel time
 - Re-plans the route after every beast completion or skip, since cooldowns may have changed
 
