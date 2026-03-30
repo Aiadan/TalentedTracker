@@ -15,11 +15,19 @@ function TalentedTracker:OnInitialize()
     self:RegisterChatCommand("tt", "SlashCommand")
     self:RegisterChatCommand("talentedtracker", "SlashCommand")
 
+    -- Snapshot current beast quest completion state
+    ns.completedQuests = {}
+    for _, beast in ipairs(ns.BEASTS) do
+        if C_QuestLog.IsQuestFlaggedCompleted(beast.questID) then
+            ns.completedQuests[beast.questID] = true
+        end
+    end
+
     ns.InitMinimapButton()
 end
 
 function TalentedTracker:OnEnable()
-    self:RegisterEvent("QUEST_TURNED_IN", "OnQuestTurnedIn")
+    self:RegisterEvent("QUEST_LOG_UPDATE", "OnQuestLogUpdate")
     self:RegisterEvent("TRADE_SKILL_LIST_UPDATE", "OnTradeSkillListUpdate")
     self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagUpdate")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnZoneChanged")
@@ -165,14 +173,16 @@ end
 -- Events
 ------------------------------------------------------------------------
 
-function TalentedTracker:OnQuestTurnedIn(_, questID)
+function TalentedTracker:OnQuestLogUpdate()
+    -- Check each beast quest for newly completed ones
     for _, beast in ipairs(ns.BEASTS) do
-        if beast.questID == questID then
+        local completed = C_QuestLog.IsQuestFlaggedCompleted(beast.questID)
+        if completed and not ns.completedQuests[beast.questID] then
+            ns.completedQuests[beast.questID] = true
             self:Printf("|cff00ff00%s skinned!|r (%d/%d complete)",
                 beast.name, self:GetCompletedCount(), #ns.BEASTS)
-            ns.Routing:OnQuestCompleted(questID)
+            ns.Routing:OnQuestCompleted(beast.questID)
             ns.MainWindow:Refresh()
-            return
         end
     end
 end
