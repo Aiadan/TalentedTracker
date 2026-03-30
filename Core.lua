@@ -10,7 +10,10 @@ function TalentedTracker:OnInitialize()
 
     _G[dbName] = _G[dbName] or {}
     ns.db = _G[dbName]
-    ns.db.recipeCache = ns.db.recipeCache or {}
+
+    -- Clean up legacy account-wide recipe cache
+    ns.db.recipeCache = nil
+    ns.db.recipeCacheScanned = nil
 
     self:RegisterChatCommand("tt", "SlashCommand")
     self:RegisterChatCommand("talentedtracker", "SlashCommand")

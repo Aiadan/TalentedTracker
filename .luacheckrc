@@ -33,10 +33,12 @@ read_globals = {
     "GameTooltip_Hide",
     "GetBindLocation",
     "GetItemInfo",
+    "GetRealmName",
     "IsSpellKnown",
     "PlayerHasToy",
     "GetTime",
     "UiMapPoint",
+    "UnitName",
     "UIParent",
     "UISpecialFrames",
 
