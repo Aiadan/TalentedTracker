@@ -23,4 +23,5 @@ RecipeCache.lua
 Core.lua
 MainWindow.lua
 MinimapButton.lua
+LureButton.lua
 Integrations.lua

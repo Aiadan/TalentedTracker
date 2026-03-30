@@ -22,6 +22,7 @@ read_globals = {
     "C_QuestLog",
     "C_Spell",
     "C_SuperTrack",
+    "C_UnitAuras",
     "C_Timer",
     "C_TradeSkillUI",
     "C_AddOns",
