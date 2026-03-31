@@ -66,7 +66,18 @@ ns.DIRECT_PORTALS = {
         poiSearch = "Voidstorm",
         poiMapID = ns.ZONE_HARANDAR_DEN,
         arrivalMapID = ns.ZONE_VOIDSTORM,
-        arrivalX = 0.516, arrivalY = 0.702,  -- near the SM portal area in Voidstorm
+        arrivalX = 0.516, arrivalY = 0.702,
+    },
+    {
+        fromZone = ns.ZONE_VOIDSTORM,
+        toZone = ns.ZONE_HARANDAR,
+        portalMapID = ns.ZONE_VOIDSTORM,
+        portalX = 0.516, portalY = 0.702,  -- next to the SM portal
+        portalName = "Portal to Harandar",
+        poiSearch = "Harandar",
+        poiMapID = ns.ZONE_VOIDSTORM,
+        arrivalMapID = ns.ZONE_HARANDAR_DEN,
+        arrivalX = 0.6467, arrivalY = 0.7095,
     },
 }
 
