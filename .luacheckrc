@@ -40,6 +40,7 @@ read_globals = {
     "GetTime",
     "UiMapPoint",
     "UnitName",
+    "UIErrorsFrame",
     "UIParent",
     "UISpecialFrames",
 

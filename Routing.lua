@@ -11,6 +11,12 @@ local function ChatName(step)
     return step.name:gsub(" %(.+%)$", "")
 end
 
+-- Color code for step type: green=beast, cyan=teleport, yellow=portal
+local function ColoredStep(step)
+    local color = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
+    return color .. ChatName(step) .. "|r"
+end
+
 -- Navigation state
 local navSteps = nil          -- ordered list of waypoint steps
 local navIndex = 0            -- current step index
@@ -608,6 +614,9 @@ local function TrySuperTrackPortalPOI(step)
 end
 
 local function SetTomTomWaypoint(step)
+    if step.type == "teleport" then
+        UIErrorsFrame:AddMessage(ChatName(step), 0, 0.8, 1, 1, 5)
+    end
     if TomTom and TomTom.AddWaypoint then
         local opts = {
             title = step.name,
@@ -703,7 +712,7 @@ function ns.Routing:AdvanceWaypoint()
             return
         end
         local step = navSteps[navIndex]
-        ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ChatName(step))
+        ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ColoredStep(step))
         navUID = SetTomTomWaypoint(step)
         ns.MainWindow:Refresh()
     end
@@ -802,7 +811,7 @@ function ns.Routing:PlanReturnToSilvermoon()
     end
 
     local step = navSteps[1]
-    ns.addon:Printf("Step 1/%d: %s", #navSteps, ChatName(step))
+    ns.addon:Printf("Step 1/%d: %s", #navSteps, ColoredStep(step))
     navUID = SetTomTomWaypoint(step)
     ns.MainWindow:Refresh()
     return true
@@ -853,7 +862,7 @@ function ns.Routing:ReplanRoute()
     end
 
     local step = navSteps[1]
-    ns.addon:Printf("Step 1/%d: %s", #navSteps, ChatName(step))
+    ns.addon:Printf("Step 1/%d: %s", #navSteps, ColoredStep(step))
     navUID = SetTomTomWaypoint(step)
     ns.MainWindow:Refresh()
     return true
@@ -910,7 +919,7 @@ function ns.Routing:OnZoneChanged()
                     ClearCurrentWaypoint()
                     navIndex = i
                     local beastStep = navSteps[navIndex]
-                    ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ChatName(beastStep))
+                    ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ColoredStep(beastStep))
                     navUID = SetTomTomWaypoint(beastStep)
                     ns.MainWindow:Refresh()
                     return
