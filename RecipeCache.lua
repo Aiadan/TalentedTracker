@@ -89,6 +89,14 @@ function ns.RecipeCache:CanCraftLure(lureItemID)
     return cached and cached.learned
 end
 
+function ns.RecipeCache:GetRecipeID(lureItemID)
+    if not ns.db then return nil end
+    local cc = GetCharCache()
+    local cached = cc.recipes and cc.recipes[lureItemID]
+    if cached then return cached.recipeID end
+    return nil
+end
+
 function ns.RecipeCache:GetReagents(lureItemID)
     if not ns.db then return nil end
     local cc = GetCharCache()
