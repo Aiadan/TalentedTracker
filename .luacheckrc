@@ -33,6 +33,7 @@ read_globals = {
     "GameTooltip_Hide",
     "GetBindLocation",
     "GetItemInfo",
+    "InCombatLockdown",
     "GetRealmName",
     "IsSpellKnown",
     "PlayerHasToy",
