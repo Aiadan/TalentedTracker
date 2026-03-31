@@ -81,11 +81,12 @@ function ns.Integrations:CreateShoppingList()
         local have = C_Item.GetItemCount(itemID, true)
         local need = info.quantity - have
         if need > 0 then
-            if info.name then
+            local name = info.name or GetItemInfo(itemID)
+            if name then
                 local searchTerm = Auctionator.API.v1.ConvertToSearchString(
                     "TalentedTracker",
                     {
-                        searchString = info.name,
+                        searchString = name,
                         isExact = true,
                         quantity = need,
                     }

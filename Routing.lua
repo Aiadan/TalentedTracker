@@ -312,6 +312,7 @@ end
 
 function ns.Routing:GetAvailableTeleports()
     local available = {}
+    if InCombatLockdown() then return available end
     for _, tp in ipairs(ns.TELEPORTS) do
         local destMapID, destX, destY = tp.destMapID, tp.destX, tp.destY
 
