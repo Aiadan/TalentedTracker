@@ -34,6 +34,7 @@ read_globals = {
     "GetBindLocation",
     "GetItemInfo",
     "InCombatLockdown",
+    "IsInInstance",
     "GetRealmName",
     "IsSpellKnown",
     "PlayerHasToy",
