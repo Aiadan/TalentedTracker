@@ -13,7 +13,7 @@ Talented Tracker knows where every beast is, which ones you've already skinned t
 
 ### Route Planning
 - Calculates the optimal visit order across all Midnight zones using a shortest-path solver
-- Models the full portal network: Silvermoon ↔ Harandar, Silvermoon ↔ Voidstorm, plus walkable Eversong Woods and Zul'Aman
+- Models the full portal network: Silvermoon ↔ Harandar, Silvermoon ↔ Voidstorm, Harandar → Voidstorm shortcut, plus walkable Eversong Woods and Zul'Aman
 - Factors in your hearthstone bind location — supports all 15 Midnight zone inns
 - Uses the Personal Key to the Arcantina as a second teleport anchor (2 loading screens)
 - Mages with Teleport: Silvermoon City get a third teleport option
@@ -24,12 +24,20 @@ Talented Tracker knows where every beast is, which ones you've already skinned t
 ### Step-by-Step Navigation
 - Guides you through the route one waypoint at a time: beast → portal → beast → portal → ...
 - Portal and teleport steps show which beast you're heading toward (e.g. "Portal to Harandar (Lumenfin)")
-- Auto-advances when you arrive within 20 yards of a beast
+- Auto-advances when you arrive within 10 yards of a beast or when you complete the skinning quest
 - Auto-advances on zone change when you take a portal
+- Skips transit steps if you arrive in the beast's zone by an unexpected route
 - Skip button to drop a beast from the route and re-plan
 - Stop button to cancel navigation at any time
 - Works with **TomTom** (crazy arrow) when installed
 - Falls back to the built-in map pin system otherwise, with automatic supertracking of portal POIs
+
+### Lure Action Button
+- Automatically appears when you're standing at a beast location with the Sixth Sense debuff
+- If you have the lure in your inventory, clicking the button places it at your feet instantly
+- If you don't have the lure but know the recipe, clicking opens the profession window to the recipe
+- Switches from craft to place automatically when the lure enters your bags
+- Draggable, position is saved
 
 ### Auctionator Shopping List
 - Creates a shopping list for reagents needed to craft lures you're missing
