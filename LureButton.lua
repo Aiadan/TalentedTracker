@@ -188,30 +188,32 @@ end
 -- Aura monitoring
 ------------------------------------------------------------------------
 
-local auraFrame = CreateFrame("Frame")
-auraFrame:RegisterEvent("UNIT_AURA")
-auraFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-auraFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+local pendingUpdate = false
 
-auraFrame:SetScript("OnEvent", function(_, event, unit)
-    if event == "UNIT_AURA" and unit ~= "player" then return end
-    if InCombatLockdown() then return end
-    if IsInInstance() then return end
+local function CheckSixthSense()
+    if IsInInstance() then
+        HideLureButton()
+        return
+    end
+
+    -- Can't modify secure button attributes in combat, defer until combat ends
+    if InCombatLockdown() then
+        pendingUpdate = true
+        return
+    end
 
     local ok, hasSixthSense = pcall(function()
         for i = 1, 40 do
             local data = C_UnitAuras.GetAuraDataByIndex("player", i, "HARMFUL")
             if not data then break end
             if data.name == SIXTH_SENSE_NAME then
-                local desc = C_Spell.GetSpellDescription(data.spellId)
-                if desc and (desc:find("majestic beast", 1, true) or desc:find("grand beast", 1, true)) then
-                    return true
-                end
+                return true
             end
         end
         return false
     end)
     if not ok then hasSixthSense = false end
+
     if hasSixthSense then
         local beast = FindNearestBeast()
         if beast then
@@ -222,4 +224,21 @@ auraFrame:SetScript("OnEvent", function(_, event, unit)
     else
         HideLureButton()
     end
+end
+
+local auraFrame = CreateFrame("Frame")
+auraFrame:RegisterEvent("UNIT_AURA")
+auraFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+auraFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+auraFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+
+auraFrame:SetScript("OnEvent", function(_, event, unit)
+    if event == "UNIT_AURA" and unit ~= "player" then return end
+
+    -- PLAYER_REGEN_ENABLED = combat ended, process pending update
+    if event == "PLAYER_REGEN_ENABLED" and pendingUpdate then
+        pendingUpdate = false
+    end
+
+    CheckSixthSense()
 end)
