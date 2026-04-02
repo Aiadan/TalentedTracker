@@ -182,7 +182,7 @@ function TalentedTracker:OnQuestLogUpdate()
         local completed = C_QuestLog.IsQuestFlaggedCompleted(beast.questID)
         if completed and not ns.completedQuests[beast.questID] then
             ns.completedQuests[beast.questID] = true
-            self:Printf("|cff00ff00%s skinned!|r (%d/%d complete)",
+            self:Printf("|cff00ff00%s skinned!|r (%d/%d skinned)",
                 beast.name, self:GetCompletedCount(), #ns.BEASTS)
             ns.Routing:OnQuestCompleted(beast.questID)
             ns.MainWindow:Refresh()

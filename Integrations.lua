@@ -75,28 +75,68 @@ function ns.Integrations:CreateShoppingList()
         return
     end
 
-    -- Subtract reagents already in inventory, build search strings
-    local searchStrings = {}
+    -- Collect needed reagents and check if item data is cached
+    local needed = {} -- { {itemID, quantity}, ... }
+    local missing = {} -- item IDs not yet cached
     for itemID, info in pairs(reagentTotals) do
         local have = C_Item.GetItemCount(itemID, true)
         local need = info.quantity - have
         if need > 0 then
-            local name = info.name or GetItemInfo(itemID)
-            if name then
-                local searchTerm = Auctionator.API.v1.ConvertToSearchString(
-                    "TalentedTracker",
-                    {
-                        searchString = name,
-                        isExact = true,
-                        quantity = need,
-                    }
-                )
-                table.insert(searchStrings, searchTerm)
-            else
-                -- Name not yet resolved — request it for next time
-                C_Item.RequestLoadItemDataByID(itemID)
-                ns.addon:Printf("Item name for %d not yet loaded. Try /tt shop again in a moment.", itemID)
+            table.insert(needed, { itemID = itemID, quantity = need })
+            if not GetItemInfo(itemID) then
+                table.insert(missing, itemID)
             end
+        end
+    end
+
+    -- If any item names are missing, request them and retry after they load
+    if #missing > 0 then
+        for _, itemID in ipairs(missing) do
+            C_Item.RequestLoadItemDataByID(itemID)
+        end
+        ns.addon:Print("Loading item data...")
+        local remaining = #missing
+        local retryFrame = CreateFrame("Frame")
+        retryFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+        retryFrame:SetScript("OnEvent", function(frame, _, loadedItemID)
+            for i, id in ipairs(missing) do
+                if id == loadedItemID then
+                    table.remove(missing, i)
+                    remaining = remaining - 1
+                    break
+                end
+            end
+            if remaining <= 0 then
+                frame:UnregisterAllEvents()
+                frame:SetScript("OnEvent", nil)
+                ns.Integrations:CreateShoppingList()
+            end
+        end)
+        -- Timeout after 5 seconds in case items never load
+        C_Timer.After(5, function()
+            if remaining > 0 then
+                retryFrame:UnregisterAllEvents()
+                retryFrame:SetScript("OnEvent", nil)
+                ns.Integrations:CreateShoppingList()
+            end
+        end)
+        return
+    end
+
+    -- Build search strings
+    local searchStrings = {}
+    for _, item in ipairs(needed) do
+        local name = GetItemInfo(item.itemID)
+        if name then
+            local searchTerm = Auctionator.API.v1.ConvertToSearchString(
+                "TalentedTracker",
+                {
+                    searchString = name,
+                    isExact = true,
+                    quantity = item.quantity,
+                }
+            )
+            table.insert(searchStrings, searchTerm)
         end
     end
 
