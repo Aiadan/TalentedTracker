@@ -11,6 +11,25 @@ local function ChatName(step)
     return step.name:gsub(" %(.+%)$", "")
 end
 
+-- Extract beast visit order from a step list for comparison
+local function GetBeastOrder(steps)
+    local order = {}
+    for _, step in ipairs(steps) do
+        if step.type == "beast" and step.questID then
+            table.insert(order, step.questID)
+        end
+    end
+    return order
+end
+
+local function SameBeastOrder(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do
+        if a[i] ~= b[i] then return false end
+    end
+    return true
+end
+
 -- Color code for step type: green=beast, cyan=teleport, yellow=portal
 local function ColoredStep(step)
     local color = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
@@ -23,6 +42,8 @@ local navIndex = 0            -- current step index
 local navUID   = nil          -- current TomTom waypoint UID
 local navCraftableOnly = true -- route filter setting used when this route was created
 local navVisitedQuests = {}   -- questIDs of beasts we've completed or skipped this route
+local navTotalSteps = 0       -- total steps in the original route (for display)
+local navCompletedSteps = 0   -- steps completed so far
 
 ------------------------------------------------------------------------
 -- Zone alias resolution
@@ -671,6 +692,8 @@ function ns.Routing:StartNavigation(steps, craftableOnly)
     navIndex = 0
     navCraftableOnly = craftableOnly
     navVisitedQuests = {}
+    navTotalSteps = #steps
+    navCompletedSteps = 0
 
     -- Print route summary
     ns.addon:Print("Route planned (" .. #steps .. " steps):")
@@ -711,8 +734,9 @@ function ns.Routing:AdvanceWaypoint()
             ns.MainWindow:Refresh()
             return
         end
+        navCompletedSteps = navCompletedSteps + 1
         local step = navSteps[navIndex]
-        ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ColoredStep(step))
+        ns.addon:Printf("Step %d/%d: %s", navCompletedSteps, navTotalSteps, ColoredStep(step))
         navUID = SetTomTomWaypoint(step)
         ns.MainWindow:Refresh()
     end
@@ -846,23 +870,39 @@ function ns.Routing:ReplanRoute()
         return false
     end
 
+    -- Compare new route's beast order with the remaining old route
+    local oldOrder = GetBeastOrder(navSteps)
+    -- Remove already-visited beasts from old order for comparison
+    local oldRemaining = {}
+    for _, qid in ipairs(oldOrder) do
+        if not navVisitedQuests[qid] then
+            table.insert(oldRemaining, qid)
+        end
+    end
+    local newOrder = GetBeastOrder(steps)
+    local routeChanged = not SameBeastOrder(oldRemaining, newOrder)
+
     -- Replace the current route with the new plan
     ClearCurrentWaypoint()
     local savedVisited = navVisitedQuests
     local savedCraftable = navCraftableOnly
     navSteps = steps
     navIndex = 1
+    navCompletedSteps = navCompletedSteps + 1
     navVisitedQuests = savedVisited
     navCraftableOnly = savedCraftable
 
-    ns.addon:Print("Route re-planned (" .. #steps .. " steps remaining):")
-    for i, step in ipairs(steps) do
-        local icon = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
-        ns.addon:Printf("  %d. %s%s|r", i, icon, ChatName(step))
+    if routeChanged then
+        navTotalSteps = navCompletedSteps + #steps - 1
+        ns.addon:Print("Route re-planned (" .. #steps .. " steps remaining):")
+        for i, step in ipairs(steps) do
+            local icon = step.type == "beast" and "|cff00ff00" or step.type == "teleport" and "|cff00ccff" or "|cffffff00"
+            ns.addon:Printf("  %d. %s%s|r", i, icon, ChatName(step))
+        end
     end
 
     local step = navSteps[1]
-    ns.addon:Printf("Step 1/%d: %s", #navSteps, ColoredStep(step))
+    ns.addon:Printf("Step %d/%d: %s", navCompletedSteps, navTotalSteps, ColoredStep(step))
     navUID = SetTomTomWaypoint(step)
     ns.MainWindow:Refresh()
     return true
@@ -873,6 +913,8 @@ function ns.Routing:StopNavigation()
     navSteps = nil
     navIndex = 0
     navVisitedQuests = {}
+    navTotalSteps = 0
+    navCompletedSteps = 0
 end
 
 function ns.Routing:IsNavigating()
@@ -881,7 +923,7 @@ end
 
 function ns.Routing:GetCurrentStep()
     if navSteps and navIndex > 0 and navIndex <= #navSteps then
-        return navSteps[navIndex], navIndex, #navSteps
+        return navSteps[navIndex], navCompletedSteps, navTotalSteps
     end
     return nil
 end
@@ -917,9 +959,10 @@ function ns.Routing:OnZoneChanged()
                 if ResolveZone(navSteps[i].mapID) == currentMapID then
                     -- Skip ahead to this beast step
                     ClearCurrentWaypoint()
+                    navCompletedSteps = navCompletedSteps + (i - navIndex)
                     navIndex = i
                     local beastStep = navSteps[navIndex]
-                    ns.addon:Printf("Step %d/%d: %s", navIndex, #navSteps, ColoredStep(beastStep))
+                    ns.addon:Printf("Step %d/%d: %s", navCompletedSteps, navTotalSteps, ColoredStep(beastStep))
                     navUID = SetTomTomWaypoint(beastStep)
                     ns.MainWindow:Refresh()
                     return
