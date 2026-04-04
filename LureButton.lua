@@ -59,6 +59,10 @@ local function CreateLureButton()
         self:StopMovingOrSizing()
         local point, _, relPoint, x, y = self:GetPoint()
         ns.db.lureButtonPos = { point = point, relPoint = relPoint, x = x, y = y }
+        if craftButton then
+            craftButton:ClearAllPoints()
+            craftButton:SetPoint(point, UIParent, relPoint, x, y)
+        end
     end)
 
     button:SetScript("OnEnter", function(self)
@@ -106,6 +110,10 @@ local function CreateCraftButton()
         self:StopMovingOrSizing()
         local point, _, relPoint, x, y = self:GetPoint()
         ns.db.lureButtonPos = { point = point, relPoint = relPoint, x = x, y = y }
+        if button then
+            button:ClearAllPoints()
+            button:SetPoint(point, UIParent, relPoint, x, y)
+        end
     end)
 
     craftButton:SetScript("OnEnter", function(self)
@@ -149,6 +157,14 @@ local function UpdateButtonIcon(btn, itemID)
     end
 end
 
+local function SyncButtonPosition(btn)
+    local pos = ns.db.lureButtonPos
+    if pos then
+        btn:ClearAllPoints()
+        btn:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
+    end
+end
+
 local function ShowLureButton(beast)
     if not button then CreateLureButton() end
     if not craftButton then CreateCraftButton() end
@@ -161,6 +177,7 @@ local function ShowLureButton(beast)
         button:SetAttribute("type1", "macro")
         button:SetAttribute("macrotext", "/use [@player] item:" .. beast.lureItemID)
         UpdateButtonIcon(button, beast.lureItemID)
+        SyncButtonPosition(button)
         button:Show()
         craftButton:Hide()
     else
@@ -168,6 +185,7 @@ local function ShowLureButton(beast)
         local canCraft = ns.RecipeCache:CanCraftLure(beast.lureItemID)
         if canCraft then
             UpdateButtonIcon(craftButton, beast.lureItemID)
+            SyncButtonPosition(craftButton)
             craftButton:Show()
             button:Hide()
         else
