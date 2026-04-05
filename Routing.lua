@@ -44,6 +44,7 @@ local navCraftableOnly = true -- route filter setting used when this route was c
 local navVisitedQuests = {}   -- questIDs of beasts we've completed or skipped this route
 local navTotalSteps = 0       -- total steps in the original route (for display)
 local navCompletedSteps = 0   -- steps completed so far
+local navLastBindLocation = nil -- last known hearthstone bind location
 
 ------------------------------------------------------------------------
 -- Zone alias resolution
@@ -694,6 +695,7 @@ function ns.Routing:StartNavigation(steps, craftableOnly)
     navVisitedQuests = {}
     navTotalSteps = #steps
     navCompletedSteps = 0
+    navLastBindLocation = GetBindLocation()
 
     -- Print route summary
     ns.addon:Print("Route planned (" .. #steps .. " steps):")
@@ -716,11 +718,15 @@ function ns.Routing:AdvanceWaypoint()
         end
     end
 
-    -- After completing a beast, re-plan the remaining route from current position
+    -- Re-plan if we completed a beast step or if hearthstone bind changed
     local didReplan = false
     if navSteps and navIndex > 0 then
         local curStep = navSteps[navIndex]
-        if curStep and curStep.type == "beast" then
+        local bindChanged = GetBindLocation() ~= navLastBindLocation
+        if bindChanged then
+            navLastBindLocation = GetBindLocation()
+        end
+        if (curStep and curStep.type == "beast") or bindChanged then
             didReplan = self:ReplanRoute()
         end
     end
