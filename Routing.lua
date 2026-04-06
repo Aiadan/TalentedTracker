@@ -950,10 +950,12 @@ function ns.Routing:OnZoneChanged()
     if step.type == "portal" then
         if currentMapID ~= step.mapID then
             self:AdvanceWaypoint()
+            return
         end
     elseif step.type == "teleport" then
         if currentMapID == ns.ZONE_SILVERMOON then
             self:AdvanceWaypoint()
+            return
         end
     end
 
