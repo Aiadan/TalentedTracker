@@ -359,7 +359,11 @@ function ns.Routing:GetAvailableTeleports()
                 -- Spell-based teleport (e.g. Mage Teleport: Silvermoon City)
                 if IsSpellKnown(tp.spellID) then
                     local cdInfo = C_Spell.GetSpellCooldown(tp.spellID)
+                    -- Ignore the global cooldown (~1.5s): a spell on GCD is still
+                    -- "available" for routing purposes. Real teleport CDs are minutes.
                     local offCooldown = not cdInfo or cdInfo.duration == 0
+                        or cdInfo.duration <= 1.5
+                        or (cdInfo.startTime and GetTime() >= cdInfo.startTime + cdInfo.duration)
                     if offCooldown then
                         isAvailable = true
                     end
