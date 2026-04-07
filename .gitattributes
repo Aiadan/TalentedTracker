@@ -1,0 +1,5 @@
+# Force LF line endings for all text files regardless of platform.
+# Without this, core.autocrlf=true on Windows wants to convert to CRLF
+# on checkout, producing "LF will be replaced by CRLF" warnings on every
+# git operation.
+* text=auto eol=lf
