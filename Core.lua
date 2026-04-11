@@ -15,6 +15,10 @@ function TalentedTracker:OnInitialize()
     ns.db.recipeCache = nil
     ns.db.recipeCacheScanned = nil
 
+    ns.majesticHideOnly = ns.db.majesticHideOnly or false
+    ns.includeSkinned = ns.db.includeSkinned or false
+    ns.endAtSilvermoon = ns.db.endAtSilvermoon or false
+
     self:RegisterChatCommand("tt", "SlashCommand")
     self:RegisterChatCommand("talentedtracker", "SlashCommand")
 
@@ -74,6 +78,9 @@ function TalentedTracker:GetBeastsForRoute(craftableOnly)
     local result = {}
     for _, entry in ipairs(self:GetBeastStatus()) do
         local include = not entry.skinned or ns.includeSkinned
+        if ns.majesticHideOnly and not entry.beast.majesticHide then
+            include = false
+        end
         if include then
             if not craftableOnly or entry.hasLure or entry.canCraft or entry.skinned then
                 table.insert(result, entry)

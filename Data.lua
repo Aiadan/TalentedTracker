@@ -152,6 +152,7 @@ ns.BEASTS = {
         mapID = 2395,
         x = 0.4200,
         y = 0.7994,
+        majesticHide = true,
     },
     {
         name = "Silverscale",
@@ -182,6 +183,7 @@ ns.BEASTS = {
         mapID = 2405,
         x = 0.5460,
         y = 0.6580,
+        majesticHide = true,
     },
     {
         name = "Netherscythe",
@@ -192,6 +194,7 @@ ns.BEASTS = {
         mapID = 2405,
         x = 0.4325,
         y = 0.8275,
+        majesticHide = true,
     },
 }
 
