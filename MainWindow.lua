@@ -6,7 +6,7 @@ local WINDOW_WIDTH = 300
 local ROW_HEIGHT = 22
 local PADDING = 10
 
-local frame, rows, routeBtn, routeAllBtn, shopBtn, stopBtn, skipBtn, statusText, navText, includeSkinnedCB
+local frame, rows, routeBtn, routeAllBtn, shopBtn, stopBtn, skipBtn, statusText, navText, includeSkinnedCB, majesticOnlyCB
 
 ------------------------------------------------------------------------
 -- Beast row creation
@@ -36,8 +36,8 @@ local function CreateMainFrame()
     -- Calculate height from content
     -- Title bar ~24, inset top ~4, beast rows, status line, checkbox, nav text, buttons, scan button, padding
     local beastAreaHeight = #ns.BEASTS * ROW_HEIGHT
-    local bottomAreaHeight = 14 + 4 + 22 + 4 + 22 + 4 + 14 + 4 + 22 + 4 + 18 + PADDING
-    -- status(14) + gap + cb1(22) + gap + cb2(22) + gap + navText(14) + gap + buttons(22) + gap + scan(18) + pad
+    local bottomAreaHeight = 14 + 4 + 22 + 4 + 22 + 4 + 22 + 4 + 14 + 4 + 22 + 4 + 18 + PADDING
+    -- status(14) + gap + cb1(22) + gap + cb2(22) + gap + cb3(22) + gap + navText(14) + gap + buttons(22) + gap + scan(18) + pad
     local WINDOW_HEIGHT = 28 + 4 + beastAreaHeight + 4 + bottomAreaHeight
 
     frame = CreateFrame("Frame", "TalentedTrackerMainFrame", UIParent, "BasicFrameTemplateWithInset")
@@ -172,20 +172,42 @@ local function CreateMainFrame()
     local endAtSMCB = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     endAtSMCB:SetSize(22, 22)
     endAtSMCB:SetPoint("BOTTOMLEFT", routeBtn, "TOPLEFT", -2, 18)
-    endAtSMCB:SetChecked(false)
+    endAtSMCB:SetChecked(ns.endAtSilvermoon or false)
     endAtSMCB:SetScript("OnClick", function(cb)
         ns.endAtSilvermoon = cb:GetChecked()
+        if ns.db then ns.db.endAtSilvermoon = ns.endAtSilvermoon end
     end)
     local endAtSMLabel = endAtSMCB:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     endAtSMLabel:SetPoint("LEFT", endAtSMCB, "RIGHT", 2, 0)
     endAtSMLabel:SetText("End at Silvermoon")
 
+    majesticOnlyCB = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    majesticOnlyCB:SetSize(22, 22)
+    majesticOnlyCB:SetPoint("BOTTOMLEFT", endAtSMCB, "TOPLEFT", 0, 4)
+    majesticOnlyCB:SetChecked(ns.db and ns.db.majesticHideOnly or false)
+    ns.majesticHideOnly = majesticOnlyCB:GetChecked()
+    majesticOnlyCB:SetScript("OnClick", function(cb)
+        ns.majesticHideOnly = cb:GetChecked()
+        if ns.db then ns.db.majesticHideOnly = ns.majesticHideOnly end
+        ns.MainWindow:Refresh()
+    end)
+    local majesticLabel = majesticOnlyCB:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    majesticLabel:SetPoint("LEFT", majesticOnlyCB, "RIGHT", 2, 0)
+    majesticLabel:SetText("Majestic Hide beasts only")
+    majesticOnlyCB:SetScript("OnEnter", function(btn)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText("Only route/shop for Gloomclaw, Umbrafang, and Netherscythe\n(the beasts that can drop Majestic Hides)", 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    majesticOnlyCB:SetScript("OnLeave", GameTooltip_Hide)
+
     includeSkinnedCB = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     includeSkinnedCB:SetSize(22, 22)
-    includeSkinnedCB:SetPoint("BOTTOMLEFT", endAtSMCB, "TOPLEFT", 0, 4)
-    includeSkinnedCB:SetChecked(false)
+    includeSkinnedCB:SetPoint("BOTTOMLEFT", majesticOnlyCB, "TOPLEFT", 0, 4)
+    includeSkinnedCB:SetChecked(ns.includeSkinned or false)
     includeSkinnedCB:SetScript("OnClick", function(cb)
         ns.includeSkinned = cb:GetChecked()
+        if ns.db then ns.db.includeSkinned = ns.includeSkinned end
         ns.MainWindow:Refresh()
     end)
     local cbLabel = includeSkinnedCB:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -215,11 +237,16 @@ function ns.MainWindow:Refresh()
     for i, entry in ipairs(status) do
         local row = rows[i]
         row.name:SetText(entry.beast.name)
+        local filteredOut = ns.majesticHideOnly and not entry.beast.majesticHide
 
         if entry.skinned then
             row.name:SetTextColor(0.5, 0.5, 0.5)
             row.status:SetText("Skinned")
             row.status:SetTextColor(0.5, 0.5, 0.5)
+        elseif filteredOut then
+            row.name:SetTextColor(0.4, 0.4, 0.4)
+            row.status:SetText("Skipped")
+            row.status:SetTextColor(0.4, 0.4, 0.4)
         else
             remaining = remaining + 1
             row.name:SetTextColor(1, 1, 1)
@@ -236,10 +263,18 @@ function ns.MainWindow:Refresh()
         end
     end
 
+    local totalBeasts = #ns.BEASTS
+    if ns.majesticHideOnly then
+        totalBeasts = 0
+        for _, b in ipairs(ns.BEASTS) do
+            if b.majesticHide then totalBeasts = totalBeasts + 1 end
+        end
+    end
+
     if remaining == 0 then
         statusText:SetText("|cff00ff00All renowned beasts skinned for today!|r")
     else
-        statusText:SetText(string.format("%d / %d remaining", remaining, #ns.BEASTS))
+        statusText:SetText(string.format("%d / %d remaining", remaining, totalBeasts))
     end
 
     -- Navigation state
