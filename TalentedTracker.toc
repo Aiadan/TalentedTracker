@@ -1,4 +1,4 @@
-## Interface: 120001
+## Interface: 120005
 ## Title: |cFF33FF99Talented Tracker|r [DEV]
 ## Notes: Track renowned beast skinning dailies, plan routes, and shop for lure reagents.
 ## OptionalDeps: Auctionator
